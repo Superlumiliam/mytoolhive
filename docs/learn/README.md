@@ -57,6 +57,7 @@
 10. [Operator 治理是两级控制环](lessons/0010-operator-minimum-governance-loop.html)
 11. [验证计划从改动面推导](lessons/0011-contribution-engineering-loop.html)
 12. [vMCP 的聚合视图与路由表是两个契约](lessons/0012-vmcp-aggregation-governance.html)
+13. [Operator 引用本身不会触发 Reconcile](lessons/0013-operator-crd-dependency-graph.html)
 
 ## 长期速查
 

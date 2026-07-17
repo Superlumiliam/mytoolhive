@@ -84,6 +84,8 @@
   supervisor 进程发现、PID 验证与安全停止边界。
 - [MCPServer controller](../../cmd/thv-operator/controllers/mcpserver_controller.go)
   finalizer、引用校验、RBAC、RunConfig、Proxy Deployment/Service 与 conditions 的一级收敛主线。
+- [VirtualMCPServer watch graph](../../cmd/thv-operator/controllers/virtualmcpserver_watch_test.go)
+  group/member/shared-config/composite/embedding 事件映射回引用方的可执行规格。
 - [vMCP aggregator](../../pkg/vmcp/aggregator/default_aggregator.go)
   后端能力并发查询、工具冲突解析、广告视图与完整路由表的聚合边界。
 - [vMCP core](../../pkg/vmcp/core/core_vmcp.go)
