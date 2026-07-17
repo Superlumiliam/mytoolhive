@@ -56,6 +56,12 @@
   native HTTP server 的反向代理、session 跟踪、endpoint 重写、远端路径与 backend 路由实现。
 - [Transport session manager](../../pkg/transport/session/manager.go)
   typed session、TTL 与本地/Redis storage 的生命周期抽象。
+- [Middleware assembly](../../pkg/runner/middleware.go)
+  typed RunConfig 字段到 middleware configs 的装配、相对顺序、入口防护与 backend egress 边界。
+- [Middleware wiring in Runner](../../pkg/runner/runner.go)
+  secret 解析、两条配置路径统一补全、factory 实例化及 transport 交付顺序。
+- [Middleware integration tests](../../pkg/runner/webhook_integration_test.go)
+  通过真实 handler chain 验证 mutating、validating、authz 与 backend 的执行次序。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>第 6 课：Middleware 顺序就是安全语义</title>
+<style>:root{--ink:#1e1b2e;--muted:#625d70;--violet:#6d28d9;--soft:#faf5ff;--line:#d8b4fe;--good:#166534;--bad:#9f1239}*{box-sizing:border-box}body{font:17px/1.7 system-ui,-apple-system,sans-serif;color:var(--ink);max-width:960px;margin:48px auto;padding:0 24px}h1{font-size:clamp(2rem,5vw,2.8rem);line-height:1.12}h2{margin-top:2.25rem}a{color:var(--violet)}code,.path{font-family:ui-monospace,SFMono-Regular,monospace;color:var(--bad)}.meta,.callout{background:var(--soft);border-left:4px solid #a855f7;padding:14px 18px}.meta{color:var(--muted)}.flow{font:14px/1.65 ui-monospace,SFMono-Regular,monospace;background:#fafafa;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card,.quiz{border:1px solid var(--line);border-radius:10px;padding:15px}.card h3{margin:.1rem 0}.warning{background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 16px;color:#713f12}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left;vertical-align:top}th{background:#f3e8ff}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.choices button{font:inherit;border:1px solid #a78bfa;border-radius:999px;background:#fff;padding:7px 13px;cursor:pointer}.feedback{min-height:1.7em;margin:.6rem 0 0;font-weight:650}.good{color:var(--good)}.bad{color:var(--bad)}footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem;color:var(--muted)}@media(max-width:760px){.grid{grid-template-columns:1fr}table{font-size:.82rem}}@media print{body{margin:0;max-width:none;font-size:12pt}.choices,.feedback{display:none}.card,.quiz,details{break-inside:avoid}}</style></head>
+<body>
+<nav><a href="0005-transport-and-proxy-boundaries.html">← 第 5 课</a> · <a href="../README.md">课程地图</a> · <a href="../reference/middleware-order-checklist.html">顺序速查</a></nav>
+<h1>第 6 课：Middleware 顺序就是安全语义</h1>
+<p class="meta">校准日期：2026-07-17 · 预计 25 分钟 · 唯一目标：面对一条 middleware 配置或新增 middleware，你能推导真实请求顺序，指出它依赖哪些上游 context/headers，并判断拒绝、变换、审计和 backend egress 的正确相对位置。</p>
+
+<h2>任务钩子</h2>
+<p>把 authz 移到 authn 之前，策略就读不到可信身份；把 token injection 放在 audit 之前，审计可能观察到错误凭据；把 body limit 放到 parser 之后，恶意大 body 已被读入内存。middleware 顺序不是美学，它决定谁能看见什么、谁能修改什么、失败是否留下证据。</p>
+
+<div class="grid"><section class="card"><h3>入口防护</h3><p>body limit 最外层；Origin 校验紧随其后，尽早拒绝超大 body 与 DNS rebinding 输入。</p></section><section class="card"><h3>身份与决策</h3><p>authn 建立 identity，parser 建立 MCP method/tool context，mutate 先于 validate，authz 才能基于可信上下文决策。</p></section><section class="card"><h3>出口变换</h3><p>audit/authz 后再做 AWS signing、header forward 或额外 egress 变换，尽量贴近 backend，避免后续修改使签名或凭据失真。</p></section></div>
+
+<h2>“逆序包裹”不等于“逆序执行”</h2>
+<div class="flow">slice: [A, B, C]
+
+for i = 2..0:
+  handler = middleware[i](handler)
+
+结果: A(B(C(backend)))
+请求: A → B → C → backend
+响应: backend → C → B → A</div>
+<div class="callout"><strong>代码判断法：</strong>proxy 虽然从 slice 尾部开始包裹 handler，但 index 0 最后包在最外层，所以<strong>第一个配置在请求时最先执行</strong>。不要照抄 <code>WithMiddlewareFromFlags</code> 中“first effectively last”的旧注释；以三个 proxy 的实际循环和顺序测试为准。</div>
+
+<h2>Populate / Operator 路径的安全骨架</h2>
+<table><thead><tr><th>相对位置</th><th>代表 middleware</th><th>必须守住的不变量</th></tr></thead><tbody>
+<tr><td>最外层</td><td>body-limit → origin</td><td>在 auth/parser 读取 body 或执行业务前拒绝资源耗尽与非法 Origin。</td></tr>
+<tr><td>身份入口</td><td>auth → upstream-swap / token-exchange / strip-auth</td><td>先验证客户端身份，再转换或移除发往 upstream 的凭据。</td></tr>
+<tr><td>MCP 语义</td><td>tool filters → parser → rate-limit → mutating → validating</td><td>需要 MCP context 的组件必须位于 parser 之后；mutate 必须先于 validate。</td></tr>
+<tr><td>决策与证据</td><td>usage/telemetry → authz → audit</td><td>authz 看到身份与有效请求；audit 位于其内侧，因此 authz 提前拒绝时未必进入 audit。必须用实现测试确认要记录的事件。</td></tr>
+<tr><td>backend egress</td><td>AWS STS → header-forward → additional middleware</td><td>签名和 upstream header 尽量接近 backend，禁止把 raw secret 放入可序列化参数。</td></tr>
+<tr><td>最内层</td><td>recovery</td><td>只捕获 handler 与比它更内层的 panic；无法捕获外层 middleware 自己的 panic。</td></tr>
+</tbody></table>
+
+<p class="warning"><strong>存在两条装配路径：</strong>CLI flags 可预先填充 <code>MiddlewareConfigs</code>；Operator/通用路径由 <code>PopulateMiddlewareConfigs</code> 从 typed RunConfig 字段生成。Runner 随后统一补 header-forward、prepend Origin、确保 body-limit，再逐项调用 factory。两条路径目前并非完全同构，变更必须覆盖两侧测试。</p>
+
+<p class="warning"><strong>当前实现审计点：</strong>有 Origin 时，Populate 已加入的 body-limit 可能被 Runner 再次 prepend，形成 <code>body-limit → origin → body-limit</code>；预填的 operator header-forward 也可能在 Runner 解析秘密后再次 append。它们是需要组合测试锁定并修复的现状，不是应当模仿的设计。</p>
+
+<h2>走读 7 个锚点</h2>
+<ol><li><span class="path">pkg/runner/middleware.go</span>：列出 supported factories，追踪 Populate、Origin、body limit、header-forward 与 recovery。</li><li><span class="path">pkg/runner/config_builder.go</span>：检查 <code>WithMiddlewareFromFlags</code> 的独立装配路径及其 TODO。</li><li><span class="path">pkg/runner/runner.go</span>：确认 secrets 先解析、configs 后补全、factory 顺序创建并传给 transport。</li><li><span class="path">pkg/transport/proxy/transparent/transparent_proxy.go</span>：验证 index 0 如何成为 catch-all handler 的最外层。</li><li><span class="path">pkg/transport/proxy/streamable/streamable_proxy.go</span>：核对 stdio→Streamable 的同一 reverse-wrap 语义。</li><li><span class="path">pkg/transport/proxy/httpsse/http_proxy.go</span>：注意 MCP endpoints 经过链，但 health/metrics/discovery 不完全经过同一链。</li><li><span class="path">pkg/transport/types/transport.go</span>：理解 Config 与实际 Middleware instance/handler 的分工。</li></ol>
+
+<h2>先预测，再展开</h2>
+<details><summary>recovery 放在 slice 最后，能捕获 body-limit 的 panic 吗？</summary><p>不能。它是最内层 wrapper，只包住 backend；body-limit、auth 等外层 middleware 的 panic 不会穿过 recovery。当前注释和测试应明确这项有限保证。</p></details>
+<details><summary>/health、/metrics 和 OAuth discovery 都经过 authz 吗？</summary><p>不应假定。proxy mux 将这些专用 handler 与受 middleware 包裹的 MCP handler 分开挂载；评审暴露面时必须逐 endpoint 看路由，而不是只看 middleware slice。</p></details>
+<details><summary>只在 PopulateMiddlewareConfigs 调整顺序就覆盖 CLI 吗？</summary><p>不一定。CLI 的 <code>WithMiddlewareFromFlags</code> 会预填 slice，使 Runner 跳过 Populate；必须检查两条组装路径以及 Runner 的统一补丁步骤。</p></details>
+<details><summary>standalone <code>thv proxy</code> 也使用这条完整链吗？</summary><p>不会。它不进入 Runner，而是在 <code>cmd/thv/app/proxy.go</code> 手工组装较短的 body-limit、origin、auth、token/header 链；没有 parser/filter/authz/audit/telemetry/recovery。不要把 Runner 的链当作所有 Proxy 的全局事实。</p></details>
+<details><summary>mutating webhook 之后的 authz 一定看到变更后的 arguments 吗？</summary><p>当前 parser 先把解析结果放入 context，而 mutating middleware 替换 request body 后没有同步刷新该 context；后续 authz 可能仍读取旧 arguments。现有集成测试证明 validating/backend 看到新 body，但没有锁定 authz 输入，这是很好的贡献测试候选。</p></details>
+
+<h2>测试锚定顺序</h2>
+<ul><li><span class="path">pkg/runner/middleware_test.go</span>：body-limit outermost、AWS STS、strip-auth 冲突与相对位置、full coverage。</li><li><span class="path">pkg/runner/webhook_integration_test.go</span>：真实 handler 包裹后 mutating → validating → authz → backend 的行为。</li><li><span class="path">pkg/transport/proxy/streamable/body_limit_test.go</span>：大 body 在 parser 前得到 413。</li><li><span class="path">pkg/transport/middleware/origin/origin_test.go</span>：allowlist 与 DNS rebinding 防护。</li><li>各 middleware 邻近测试：不要只证明“slice 中存在”，还要证明 context/header、拒绝和响应路径。</li></ul>
+
+<h2>3 分钟顺序评审</h2>
+<p>选择最准确的风险；三个选项均为 6 个字符。</p>
+<section class="quiz" data-answer="身份信息缺失" data-why="authz 依赖 authn 写入的可信 identity；提前执行会让策略缺少主体或使用不可信输入。"><strong>A.</strong> 把 authz 放到 auth 之前。<div class="choices"><button type="button">身份信息缺失</button><button type="button">请求语义缺失</button><button type="button">出口签名失效</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-answer="请求语义缺失" data-why="按 tool/method 限流需要 parser 提供 MCP 语义；放在 parser 前只能做更粗粒度判断。"><strong>B.</strong> 把 tool-aware rate limit 放到 parser 之前。<div class="choices"><button type="button">身份信息缺失</button><button type="button">请求语义缺失</button><button type="button">出口签名失效</button></div><p class="feedback" aria-live="polite"></p></section>
+<section class="quiz" data-answer="出口签名失效" data-why="SigV4 后若还有 middleware 修改已签 header/body，请求可能不再与签名匹配，因此签名要贴近 backend。"><strong>C.</strong> AWS STS 签名后又修改被签 header。<div class="choices"><button type="button">身份信息缺失</button><button type="button">请求语义缺失</button><button type="button">出口签名失效</button></div><p class="feedback" aria-live="polite"></p></section>
+
+<h2>5 分钟实作：安置一个新 middleware</h2>
+<p>为“按用户和 tool 限流”写六行：① 它需要的 identity；② 它需要的 MCP context；③ 位于 auth/parser/authz/audit 的哪两者之间；④ 拒绝是否被 audit 观察；⑤ 哪些非 MCP endpoint 不应经过；⑥ 两条装配路径各加什么测试。把答案发给教师获得反馈；展示出理解后才写学习记录。</p>
+
+<h2>一手资料</h2><p>主读：<a href="../../../pkg/runner/middleware.go">middleware assembly</a>。配套事实源：<a href="../../../pkg/runner/runner.go">Runner wiring</a>、<a href="../../../pkg/transport/proxy/transparent/transparent_proxy.go">transparent wrapping</a>、<a href="../../../pkg/transport/proxy/streamable/streamable_proxy.go">streamable wrapping</a> 与相邻测试。架构背景见 <a href="../../arch/03-transport-architecture.md">Transport Architecture</a>；顺序叙述以当前循环和测试为准。</p>
+<footer><p>卡住时请附上“slice 顺序、请求顺序、所需 context、拒绝观察者、backend 变换”向教师追问。下一课会把权限与秘密从配置一直追到 runtime。</p></footer>
+<script>document.querySelectorAll('.quiz').forEach(q=>q.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{const f=q.querySelector('.feedback'),ok=b.textContent===q.dataset.answer;f.className='feedback '+(ok?'good':'bad');f.textContent=(ok?'正确。':'再想一次。')+q.dataset.why})));</script>
+</body></html>
