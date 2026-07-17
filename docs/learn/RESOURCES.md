@@ -88,6 +88,10 @@
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
   社区贡献、构建、测试与提交约定的一手依据。
+- [Taskfile](../../Taskfile.yml)
+  build、生成、lint、单元/集成/E2E 测试与文档更新的规范化入口。
+- [Pull request checks](../../.github/workflows/run-on-pr.yml)
+  spellcheck、license、lint、安全、测试、docs、codegen、charts、E2E 与 Operator CI 的仓库级证据图。
 
 ## Wisdom (Communities)
 
