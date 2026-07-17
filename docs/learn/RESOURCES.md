@@ -62,6 +62,14 @@
   secret 解析、两条配置路径统一补全、factory 实例化及 transport 交付顺序。
 - [Middleware integration tests](../../pkg/runner/webhook_integration_test.go)
   通过真实 handler chain 验证 mutating、validating、authz 与 backend 的执行次序。
+- [Secrets Management](../arch/04-secrets-management.md)
+  本地 provider 与 Kubernetes native Secret 两类交付架构的背景说明。
+- [Secret providers](../../pkg/secrets/factory.go)
+  provider 选择、system/user scope、capabilities 与 fallback 的事实入口。
+- [Runtime deployment setup](../../pkg/runtime/setup.go)
+  有效 permission profile、环境、network isolation、gateway 和 mount 意图进入 deployer 的边界。
+- [Docker workload deployment](../../pkg/container/docker/client.go)
+  本地容器 isolation、egress helper、mount 与 runtime 强制实现。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)

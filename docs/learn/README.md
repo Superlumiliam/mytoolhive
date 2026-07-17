@@ -51,6 +51,7 @@
 4. [RunConfig 是控制面契约，而不是内存快照](lessons/0004-runconfig-as-control-plane-contract.html)
 5. [Transport 决定 Proxy 是协议桥接还是 HTTP 转发](lessons/0005-transport-and-proxy-boundaries.html)
 6. [Middleware 顺序就是安全语义](lessons/0006-middleware-order-is-security.html)
+7. [最小权限是文件、网络、秘密与 runtime 的交集](lessons/0007-least-privilege-and-secrets.html)
 
 ## 长期速查
 
@@ -62,3 +63,4 @@
 - [RunConfig 控制面契约](reference/runconfig-contract.html)
 - [Transport 与 Proxy 决策表](reference/transport-proxy-decision-table.html)
 - [Middleware 顺序评审清单](reference/middleware-order-checklist.html)
+- [最小权限与秘密审计清单](reference/least-privilege-audit.html)
