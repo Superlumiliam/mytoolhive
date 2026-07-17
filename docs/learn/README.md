@@ -53,6 +53,7 @@
 6. [Middleware 顺序就是安全语义](lessons/0006-middleware-order-is-security.html)
 7. [最小权限是文件、网络、秘密与 runtime 的交集](lessons/0007-least-privilege-and-secrets.html)
 8. [Registry 是目录，供应链准入是多道门](lessons/0008-registry-and-supply-chain-admission.html)
+9. [Workload 状态是多层证据的对账结果](lessons/0009-workload-lifecycle-and-state.html)
 
 ## 长期速查
 
@@ -66,3 +67,4 @@
 - [Middleware 顺序评审清单](reference/middleware-order-checklist.html)
 - [最小权限与秘密审计清单](reference/least-privilege-audit.html)
 - [Registry 与供应链准入清单](reference/registry-admission-checklist.html)
+- [Workload 状态诊断表](reference/workload-state-diagnosis.html)

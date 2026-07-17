@@ -78,6 +78,10 @@
   名称解析、direct image fallback、provenance 验证、policy-before-pull 和执行物获取边界。
 - [RunConfig create policy gate](../../pkg/runner/policy_gate.go)
   完整运行意图的 eager/runner 创建准入接口；默认实现允许全部。
+- [File workload status manager](../../pkg/workloads/statuses/file_status.go)
+  本地 status JSON、runtime、PID、proxy health 的合并与陈旧状态校准。
+- [ToolHive process identity](../../pkg/process/toolhive_proxy.go)
+  supervisor 进程发现、PID 验证与安全停止边界。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
