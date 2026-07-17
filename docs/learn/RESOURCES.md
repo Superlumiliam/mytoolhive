@@ -82,6 +82,8 @@
   本地 status JSON、runtime、PID、proxy health 的合并与陈旧状态校准。
 - [ToolHive process identity](../../pkg/process/toolhive_proxy.go)
   supervisor 进程发现、PID 验证与安全停止边界。
+- [MCPServer controller](../../cmd/thv-operator/controllers/mcpserver_controller.go)
+  finalizer、引用校验、RBAC、RunConfig、Proxy Deployment/Service 与 conditions 的一级收敛主线。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
