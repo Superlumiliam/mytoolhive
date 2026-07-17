@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>thv run 调用链速查</title>
+  <style>:root{--ink:#172033;--blue:#075985;--soft:#ecfeff;--line:#cbd5e1}*{box-sizing:border-box}body{font:16px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);max-width:1100px;margin:40px auto;padding:0 24px}h1{font-size:2.25rem;line-height:1.15}h2{margin-top:2rem}a{color:var(--blue)}code{color:#9f1239}.lead{background:var(--soft);border-left:4px solid #06b6d4;padding:12px 16px}.flow{font:14px/1.65 ui-monospace,SFMono-Regular,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left;vertical-align:top}th{background:#e0f2fe}.evidence{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.evidence div{border:1px solid var(--line);border-radius:8px;padding:12px}@media(max-width:760px){.evidence{grid-template-columns:1fr}table{font-size:.82rem}th,td{padding:7px}}@media print{body{margin:0;max-width:none;font-size:10.5pt}a{text-decoration:none;color:inherit}.evidence div{break-inside:avoid}}</style>
+</head>
+<body>
+  <nav><a href="../README.md">课程地图</a> · <a href="../lessons/0003-trace-thv-run-end-to-end.html">第 3 课</a> · <a href="codebase-map.html">代码地图</a></nav>
+  <h1><code>thv run</code> 调用链速查</h1>
+  <p class="lead"><strong>诊断口诀：</strong>先找“最后成功点”，再判断它位于输入构建、状态交接还是长期执行。父进程成功只证明 detached 子进程已 spawn，不证明 server ready。</p>
+  <div class="flow">runCmdFunc
+  → runSingleServer
+    → BuildRunnerConfig → NewRunConfigBuilder → policy + pull
+    → EagerCheckCreateServer → SaveState
+    → RunWorkloadDetached → spawnDetached → thv start NAME --foreground
+      → restartCmdFunc → RestartWorkloads → loadRunnerFromState
+        → RunWorkload → Runner.Run
+          → secrets/middleware → runtime.Setup (deploy/start container)
+          → transport.Create/Start (start Proxy/bridge)
+          → readiness → client config → Running → monitor/retry</div>
+  <h2>阶段证据</h2>
+  <div class="evidence"><div><strong>输入构建</strong><br>命令行错误；无 RunConfig；看 <code>run.go</code>、<code>run_flags.go</code>、builder/retriever tests。</div><div><strong>状态交接</strong><br>RunConfig、Starting/Error、status JSON 中的 <code>process_id</code>；看 detached spawner tests。</div><div><strong>长期执行</strong><br>Proxy 日志、container 日志、status；看 <code>Runner.Run</code>、runtime/transport tests 与 manager retry tests。</div></div>
+  <h2>失败语义</h2>
+  <table><thead><tr><th>最后成功点</th><th>下一份证据</th><th>不要误判</th></tr></thead><tbody><tr><td>RunConfig 未生成</td><td>CLI 校验、registry/image、policy/pull 错误</td><td>不要先查 container；它还没有进入执行阶段</td></tr><tr><td>RunConfig 已保存、无 PID</td><td>spawn error、status transition、Proxy 日志文件创建</td><td>不要把状态文件存在等同于 workload 已运行</td></tr><tr><td>PID 已写、status Error</td><td>Proxy 日志中的 runtime/transport/middleware 错误</td><td>不要把 shell 返回 0 等同于 ready</td></tr><tr><td>Running 后退出</td><td><code>IsRunning</code>、<code>ErrContainerExitedRestartNeeded</code>、退避重试</td><td>不要只看最初的启动日志</td></tr><tr><td>readiness warning</td><td>探测响应与 client config</td><td>当前 warning 后仍可能继续运行</td></tr></tbody></table>
+  <p>事实源：<a href="../../../cmd/thv/app/run.go">CLI run path</a>、<a href="../../../pkg/workloads/manager.go">Workload Manager</a>、<a href="../../../pkg/runner/runner.go">Runner</a>。</p>
+</body>
+</html>

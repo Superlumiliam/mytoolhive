@@ -47,6 +47,7 @@
 
 1. [ToolHive 是治理平台，而不只是容器启动器](lessons/0001-toolhive-as-a-governance-platform.html)
 2. [部署形态改变的是控制权与信任边界](lessons/0002-deployment-modes-and-trust-boundaries.html)
+3. [把一次 `thv run` 追到真正运行](lessons/0003-trace-thv-run-end-to-end.html)
 
 ## 长期速查
 
@@ -54,3 +55,4 @@
 - [治理闭环](reference/governance-loop.html)
 - [代码库地图](reference/codebase-map.html)
 - [部署形态与信任边界](reference/deployment-trust-boundaries.html)
+- [`thv run` 调用链](reference/thv-run-call-chain.html)

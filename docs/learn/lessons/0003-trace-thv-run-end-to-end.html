@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>第 3 课：追踪一次 thv run</title>
+  <style>
+    :root{--ink:#172033;--muted:#526076;--blue:#075985;--cyan:#0e7490;--paper:#fff;--soft:#ecfeff;--line:#cbd5e1;--good:#166534;--bad:#9f1239;--amber:#92400e}*{box-sizing:border-box}body{font:17px/1.7 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);max-width:940px;margin:48px auto;padding:0 24px}h1{font-size:clamp(2rem,5vw,2.8rem);line-height:1.12;letter-spacing:-.03em}h2{margin-top:2.35rem;line-height:1.25}h3{line-height:1.3}a{color:var(--blue)}code,.path{font-family:ui-monospace,SFMono-Regular,monospace;color:var(--bad)}.meta,.callout{background:var(--soft);border-left:4px solid #06b6d4;padding:14px 18px}.meta{color:var(--muted)}.stages{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.stage,.quiz{border:1px solid var(--line);border-radius:10px;padding:16px;background:#fff}.stage h3{margin:.1rem 0 .65rem}.n{color:var(--cyan);font-weight:850}.flow{font:14px/1.65 ui-monospace,SFMono-Regular,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}.chain{width:100%;border-collapse:collapse;font-size:.94rem}.chain th,.chain td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}.chain th{background:#e0f2fe}.chain td:first-child{font-weight:750;white-space:nowrap}.checkpoint{border-left:4px solid #f59e0b;background:#fffbeb;padding:12px 16px;color:#713f12}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.choices button{font:inherit;border:1px solid #94a3b8;border-radius:999px;background:#fff;padding:7px 13px;cursor:pointer}.choices button:hover,.choices button:focus{border-color:#0891b2;background:#ecfeff}.feedback{min-height:1.7em;margin:.65rem 0 0;font-weight:650}.feedback.good{color:var(--good)}.feedback.bad{color:var(--bad)}footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem;color:var(--muted)}@media(max-width:760px){.stages{grid-template-columns:1fr}.chain{font-size:.84rem}.chain th,.chain td{padding:8px}}@media print{body{margin:0;max-width:none;font-size:12pt}.quiz,details,.stage{break-inside:avoid}.choices,.feedback{display:none}}
+  </style>
+</head>
+<body>
+  <nav><a href="0002-deployment-modes-and-trust-boundaries.html">← 第 2 课</a> · <a href="../README.md">课程地图</a> · <a href="../reference/thv-run-call-chain.html">调用链速查</a> · <a href="../reference/codebase-map.html">代码地图</a></nav>
+
+  <h1>第 3 课：把一次 <code>thv run</code> 追到真正运行</h1>
+  <p class="meta">校准日期：2026-07-17 · 预计 25 分钟 · 唯一目标：当 <code>thv run</code> 失败或“看似成功但不可用”时，你能判断失败位于输入构建、状态交接还是长期执行，并直接定位下一份源码、日志与测试。</p>
+
+  <h2>任务钩子</h2>
+  <p>用户执行 <code>thv run fetch</code> 后 shell 很快返回，但客户端连不上 MCP server。你应该先看命令行错误、RunConfig、Proxy 日志，还是 container 日志？答案取决于请求走到了哪一个“提交点”。第 2 课已经建立 detached process 心智模型；这一课把它变成可复用的调试方法。</p>
+
+  <div class="stages">
+    <section class="stage"><span class="n">01</span><h3>输入构建</h3><p>解析目标与参数，选择 runtime，解析 registry/image，构造并校验 RunConfig，执行同步 policy gate 与 image pull。</p></section>
+    <section class="stage"><span class="n">02</span><h3>状态交接</h3><p>先保存不含解析后秘密的 RunConfig，再 re-exec <code>thv start &lt;name&gt; --foreground</code>，记录 status 与 PID。</p></section>
+    <section class="stage"><span class="n">03</span><h3>长期执行</h3><p>子进程从状态加载 RunConfig，重新注入本进程的 runtime，再装配 secrets、middleware 与 transport，启动、探测并持续监控 workload。</p></section>
+  </div>
+
+  <div class="callout"><strong>关键不变量：</strong>父进程的成功边界是“detached 子进程已启动”，不是“server 已 ready”。<a href="../../../pkg/workloads/manager.go"><code>RunWorkloadDetached</code></a> 在 spawner 返回 PID 后即可结束；后续 <code>Runner.Run</code> 的失败会出现在 Proxy 日志和 workload status 中。</div>
+
+  <h2>两次进入 <code>thv</code>，一次状态交接</h2>
+  <div class="flow">进程 A（短命控制）
+runCmdFunc → runSingleServer → BuildRunnerConfig → SaveState → RunWorkloadDetached
+                                                               │
+                                    re-exec: thv start NAME --foreground
+                                                               ▼
+进程 B（长期 supervisor）
+restartCmdFunc → RestartWorkloads → loadRunnerFromState → RunWorkload → Runner.Run
+                                                              │
+        secrets/middleware → runtime.Setup → transport.Create/Start → readiness/status</div>
+
+  <p class="checkpoint"><strong>提交点：</strong><code>SaveState</code> 是两个进程共享意图的边界，但 runtime 对象不会随 JSON 跨进程持久化，子进程会在 <code>loadRunnerFromState</code> 重新注入。若保存成功但 spawn 失败，RunConfig 可能已经存在，但 PID 不应被记录；当前 PID 以 status JSON 的 <code>process_id</code> 保存，独立 PID 文件主要是迁移兼容路径。</p>
+
+  <h2>按执行顺序走读 8 个锚点</h2>
+  <table class="chain">
+    <thead><tr><th>阶段</th><th>文件 / 函数</th><th>只回答一个问题</th></tr></thead>
+    <tbody>
+      <tr><td>入口</td><td><span class="path">cmd/thv/app/run.go</span><br><code>runCmdFunc</code></td><td>普通目标、remote URL、<code>--from-config</code> 与 <code>--</code> 后参数在哪里分流？</td></tr>
+      <tr><td>边界</td><td><span class="path">cmd/thv/app/run.go</span><br><code>runSingleServer</code></td><td>runtime、workload manager、名称冲突、policy gate、SaveState 与 foreground/detached 的顺序是什么？</td></tr>
+      <tr><td>构建</td><td><span class="path">cmd/thv/app/run_flags.go</span><br><code>BuildRunnerConfig</code></td><td>registry/image 解析、builder 和 policy-before-pull 如何连接？</td></tr>
+      <tr><td>契约</td><td><span class="path">pkg/runner/config_builder.go</span><br><code>NewRunConfigBuilder</code></td><td>options、env 校验、默认 transport/port 与 schema version 在何时收敛？</td></tr>
+      <tr><td>交接</td><td><span class="path">pkg/workloads/manager.go</span><br><code>RunWorkloadDetached</code> / <code>spawnDetached</code></td><td>status 何时进入 Starting，spawn 失败时为何不能写 PID？</td></tr>
+      <tr><td>重入</td><td><span class="path">cmd/thv/app/restart.go</span> + <span class="path">manager.go</span><br><code>restartCmdFunc</code> → <code>loadRunnerFromState</code></td><td>为什么 detached 子进程必须从 state 恢复 RunConfig 并重新注入 runtime？</td></tr>
+      <tr><td>执行</td><td><span class="path">pkg/runner/runner.go</span><br><code>Runner.Run</code></td><td><code>runtime.Setup</code> 如何先 deploy/start container，再由 transport factory 创建并启动 Proxy/bridge？</td></tr>
+      <tr><td>监控</td><td><span class="path">pkg/workloads/manager.go</span><br><code>RunWorkload</code></td><td><code>ErrContainerExitedRestartNeeded</code> 如何回到带退避的 supervisor 重试循环？</td></tr>
+    </tbody>
+  </table>
+
+  <h2>测试不是“按文件读完”，而是按边界取证</h2>
+  <ul>
+    <li><span class="path">pkg/runner/retriever/retriever_test.go</span>：用 <code>TestEnforcePolicyAndPullImage</code> 确认 policy 拒绝时不 pull，以及拉取失败如何同步传播。</li>
+    <li><span class="path">pkg/runner/config_builder_test.go</span>：确认 option 合并、transport、permission profile、env 与 schema 等 RunConfig 契约。</li>
+    <li><span class="path">pkg/workloads/manager_test.go</span>：重点看 <code>RunWorkloadDetached_SpawnerSuccess</code>、<code>SpawnerError</code> 和 <code>RunWorkload</code> 重试。</li>
+    <li><span class="path">pkg/runner/runner_test.go</span>：用 <code>TestWaitForInitializeSuccess</code> 确认 readiness 的成功、超时、认证与取消语义。</li>
+    <li><span class="path">cmd/thv/app/run_test.go</span> 当前主要覆盖 remote name；不要把它误当作整条 <code>thv run</code> 主链已有完整单元测试的证据。</li>
+  </ul>
+
+  <h2>立即检索</h2>
+  <p>先在脑中作答，再展开反馈。</p>
+  <details><summary>1. 为什么必须先 SaveState，再启动 detached 子进程？</summary><p>子进程通过 <code>thv start NAME --foreground</code> 重入，并从 state 恢复 RunConfig。若先 spawn，子进程可能在配置尚未持久化时读取，形成竞态或启动失败。</p></details>
+  <details><summary>2. image pull 属于长期 supervisor 的工作吗？</summary><p>本地普通路径中，<code>BuildRunnerConfig</code> 在父进程通过 <code>EnforcePolicyAndPullImage</code> 先执行 policy gate 再 pull，使拒绝和拉取错误同步返回给用户；长期进程随后负责实际 runtime/transport 生命周期。</p></details>
+  <details><summary>3. readiness 探测超时一定让 Runner 退出吗？</summary><p>不一定。当前实现记录 warning 后继续，以保持兼容性；所以“探测告警”与“transport 启动失败”是不同契约，应以 <code>TestWaitForInitializeSuccess</code> 和调用处共同判断。</p></details>
+
+  <h2>3 分钟故障分诊</h2>
+  <p>选择首要调查阶段。三个选项均为 6 个字符，避免长度泄题。</p>
+  <section class="quiz" data-answer="输入构建阶段" data-why="host、endpoint、registry/image、RunConfig 校验与同步 policy/pull 都发生在父进程保存状态之前。"><strong>A.</strong> 命令立即报 <code>endpoint-prefix must start with '/'</code>，没有 RunConfig。<div class="choices"><button type="button">输入构建阶段</button><button type="button">状态交接阶段</button><button type="button">长期执行阶段</button></div><p class="feedback" aria-live="polite"></p></section>
+  <section class="quiz" data-answer="状态交接阶段" data-why="配置已保存但 spawner 失败时，应检查 spawn 错误、Starting/Error status 和 PID 未写入的契约。"><strong>B.</strong> RunConfig 已出现，但命令报告 <code>failed to start detached process</code>，没有 PID。<div class="choices"><button type="button">输入构建阶段</button><button type="button">状态交接阶段</button><button type="button">长期执行阶段</button></div><p class="feedback" aria-live="polite"></p></section>
+  <section class="quiz" data-answer="长期执行阶段" data-why="spawn 后的 runtime、transport、readiness、status 与自动重试都由 detached supervisor 承担。"><strong>C.</strong> shell 已返回成功，随后 status 变为 Error，Proxy 日志显示 transport start 失败。<div class="choices"><button type="button">输入构建阶段</button><button type="button">状态交接阶段</button><button type="button">长期执行阶段</button></div><p class="feedback" aria-live="polite"></p></section>
+
+  <h2>5 分钟实作：为一个失败画“最后成功点”</h2>
+  <p>假设 <code>thv run fetch</code> 返回成功，但一分钟后 <code>thv status fetch</code> 为 Error。写五行：① 最后一个由父进程保证成功的事件；② 子进程如何找到 RunConfig；③ 你先看的日志；④ 你会在 <code>Runner.Run</code> 中检查的两个边界；⑤ 最接近该失败的测试或测试缺口。把答案发给教师，我会按“进程是否分清、提交点是否准确、证据是否邻近、测试是否真覆盖”逐项反馈；通过后才写入学习记录。</p>
+
+  <h2>一手资料</h2>
+  <p>主读：<a href="../../../cmd/thv/app/run.go"><code>thv run</code> command</a>。配套事实源：<a href="../../../cmd/thv/app/run_flags.go">RunConfig assembly</a>、<a href="../../../pkg/workloads/manager.go">Workload Manager</a>、<a href="../../../pkg/runner/runner.go">Runner</a> 与 <a href="../../../pkg/runtime/setup.go">runtime setup</a>。架构背景见 <a href="../../arch/08-workloads-lifecycle.md">Workload Lifecycle</a>；若叙述顺序与当前源码不同，以源码和测试为准。</p>
+
+  <footer><p>卡住时请直接向教师追问，并附上“进程 A / 进程 B、最后成功点、下一份证据”三项。下一课会把这条调用链中的 RunConfig 单独展开，学习它为何是控制面契约而不只是参数袋。</p></footer>
+
+  <script>document.querySelectorAll('.quiz').forEach((quiz)=>{quiz.querySelectorAll('button').forEach((button)=>{button.addEventListener('click',()=>{const feedback=quiz.querySelector('.feedback');const correct=button.textContent===quiz.dataset.answer;feedback.className=`feedback ${correct?'good':'bad'}`;feedback.textContent=`${correct?'正确。':'再想一次。'}${quiz.dataset.why}`})})});</script>
+</body>
+</html>
