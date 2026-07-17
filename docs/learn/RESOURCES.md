@@ -46,6 +46,16 @@
   RunConfig 如何转为 runtime deploy options、端口绑定和实际 workload。用于定位容器创建前后的失败边界。
 - [Transport factory](../../pkg/transport/factory.go)
   transport 选择边界。用于比较 stdio、SSE 与 streamable HTTP 的实现分流。
+- [Transport architecture](../arch/03-transport-architecture.md)
+  stdio 协议桥接、native HTTP 透明转发、remote proxy 与 session 的设计背景；细节以当前源码和协议测试校准。
+- [Stdio transport](../../pkg/transport/stdio.go)
+  容器 attach、HTTP-to-stdio message pump、proxy mode 与重连/监控边界。
+- [HTTP transport](../../pkg/transport/http.go)
+  本地 TargetURI 与 RemoteURL 到 transparent proxy 的收敛路径，以及 health、session 和 OAuth 注入边界。
+- [Transparent proxy](../../pkg/transport/proxy/transparent/transparent_proxy.go)
+  native HTTP server 的反向代理、session 跟踪、endpoint 重写、远端路径与 backend 路由实现。
+- [Transport session manager](../../pkg/transport/session/manager.go)
+  typed session、TTL 与本地/Redis storage 的生命周期抽象。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)

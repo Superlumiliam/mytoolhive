@@ -49,6 +49,7 @@
 2. [部署形态改变的是控制权与信任边界](lessons/0002-deployment-modes-and-trust-boundaries.html)
 3. [把一次 `thv run` 追到真正运行](lessons/0003-trace-thv-run-end-to-end.html)
 4. [RunConfig 是控制面契约，而不是内存快照](lessons/0004-runconfig-as-control-plane-contract.html)
+5. [Transport 决定 Proxy 是协议桥接还是 HTTP 转发](lessons/0005-transport-and-proxy-boundaries.html)
 
 ## 长期速查
 
@@ -58,3 +59,4 @@
 - [部署形态与信任边界](reference/deployment-trust-boundaries.html)
 - [`thv run` 调用链](reference/thv-run-call-chain.html)
 - [RunConfig 控制面契约](reference/runconfig-contract.html)
+- [Transport 与 Proxy 决策表](reference/transport-proxy-decision-table.html)

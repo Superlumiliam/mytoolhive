@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>第 5 课：Transport 与 Proxy 边界</title>
+  <style>:root{--ink:#12202b;--muted:#536474;--teal:#0f766e;--blue:#0369a1;--soft:#ecfeff;--line:#cbd5e1;--good:#166534;--bad:#9f1239}*{box-sizing:border-box}body{font:17px/1.7 system-ui,-apple-system,sans-serif;color:var(--ink);max-width:960px;margin:48px auto;padding:0 24px}h1{font-size:clamp(2rem,5vw,2.8rem);line-height:1.12;letter-spacing:-.03em}h2{margin-top:2.35rem;line-height:1.25}a{color:var(--blue)}code,.path{font-family:ui-monospace,SFMono-Regular,monospace;color:var(--bad)}.meta,.callout{background:var(--soft);border-left:4px solid #06b6d4;padding:14px 18px}.meta{color:var(--muted)}.paths{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.path-card,.quiz{border:1px solid var(--line);border-radius:10px;padding:16px}.path-card h3{margin:.1rem 0 .6rem}.tag{color:var(--teal);font-weight:850}.flow{font:14px/1.65 ui-monospace,SFMono-Regular,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}table{width:100%;border-collapse:collapse;font-size:.93rem}th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}th{background:#cffafe}.warning{border-left:4px solid #f59e0b;background:#fffbeb;padding:12px 16px;color:#713f12}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.choices button{font:inherit;border:1px solid #94a3b8;border-radius:999px;background:#fff;padding:7px 13px;cursor:pointer}.choices button:hover,.choices button:focus{border-color:#0891b2;background:#ecfeff}.feedback{min-height:1.7em;margin:.65rem 0 0;font-weight:650}.feedback.good{color:var(--good)}.feedback.bad{color:var(--bad)}footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem;color:var(--muted)}@media(max-width:760px){.paths{grid-template-columns:1fr}table{font-size:.83rem}th,td{padding:8px}}@media print{body{margin:0;max-width:none;font-size:12pt}.quiz,details,.path-card{break-inside:avoid}.choices,.feedback{display:none}}</style>
+</head>
+<body>
+  <nav><a href="0004-runconfig-as-control-plane-contract.html">← 第 4 课</a> · <a href="../README.md">课程地图</a> · <a href="../reference/transport-proxy-decision-table.html">决策速查</a> · <a href="../reference/codebase-map.html">代码地图</a></nav>
+  <h1>第 5 课：Transport 决定 Proxy 的工作</h1>
+  <p class="meta">校准日期：2026-07-17 · 预计 25 分钟 · 唯一目标：给定 server 实际说的协议、client 需要的协议和一个故障症状，你能判断 ToolHive 应使用透明转发还是协议桥接，并定位 endpoint 与 session 的所有者。</p>
+
+  <h2>任务钩子</h2>
+  <p>一个容器只通过 stdin/stdout 读写 JSON-RPC，客户端却访问 <code>POST /mcp</code>；另一个容器自己监听 <code>/mcp</code>。两者都能在 ToolHive 外暴露 HTTP，但 Proxy 的责任完全不同：前者必须实现客户端侧 MCP transport，后者主要转发 server 已实现的 HTTP transport。</p>
+
+  <div class="paths">
+    <section class="path-card"><span class="tag">STDIO</span><h3>协议桥接</h3><p>ToolHive attach 容器 stdin/stdout，解析 newline-delimited JSON-RPC，并用 protocol-specific proxy 对客户端暴露默认 <code>/mcp</code> 或旧式 <code>/sse</code> + <code>/messages</code>。</p></section>
+    <section class="path-card"><span class="tag">SSE</span><h3>HTTP 转发</h3><p>server 自己实现 SSE。ToolHive 的 HTTPTransport 把请求交给 transparent proxy，并跟踪 session、重写 endpoint、应用治理中间件。</p></section>
+    <section class="path-card"><span class="tag">STREAMABLE</span><h3>HTTP 转发</h3><p>server 自己实现 Streamable HTTP。Proxy 保留 HTTP/MCP 语义并追踪 <code>Mcp-Session-Id</code>；本地、remote 与多副本场景可改变 target。</p></section>
+  </div>
+
+  <div class="callout"><strong>不要混淆两个维度：</strong><code>Transport</code> 描述 server 侧协议；只有当它是 <code>stdio</code> 时，<code>ProxyMode</code> 才选择 client 侧是 SSE 还是 Streamable HTTP。stdio 的默认 ProxyMode 是 <code>streamable-http</code>。</div>
+
+  <h2>Factory 的真实分流</h2>
+  <div class="flow">RunConfig.Transport
+├─ stdio
+│  └─ StdioTransport → AttachToWorkload
+│     ├─ ProxyMode streamable-http → streamable.HTTPProxy → client /mcp
+│     └─ ProxyMode sse             → httpsse.HTTPSSEProxy → client /sse + /messages
+├─ sse
+│  └─ HTTPTransport → transparent.Proxy → server HTTP endpoint
+└─ streamable-http
+   └─ HTTPTransport → transparent.Proxy → server HTTP endpoint</div>
+
+  <p class="warning"><strong>“透明”不等于“无知”：</strong>transparent proxy 通常不把 HTTP server 重新实现成另一个 MCP transport，但仍会执行 method/body 限制、session 检测和路由、SSE endpoint 重写、远端 path/query 保留、健康检查以及 middleware。修改它仍可能改变协议与安全语义。</p>
+
+  <h2>三条路径的责任矩阵</h2>
+  <table><thead><tr><th>问题</th><th>stdio + proxy mode</th><th>native SSE / Streamable HTTP</th></tr></thead><tbody>
+    <tr><td>谁说 HTTP？</td><td>ToolHive protocol-specific proxy</td><td>MCP server；ToolHive 在前面反向代理</td></tr>
+    <tr><td>谁解析 JSON-RPC？</td><td>ToolHive 必须解析 stdout 并把响应路由回 client</td><td>server 负责核心协议；proxy 仍检查部分请求/session 元数据</td></tr>
+    <tr><td>target 是什么？</td><td>container stdin/stdout stream</td><td>runtime.Setup 返回的 TargetURI，或 RemoteURL 的 scheme/host + path/query</td></tr>
+    <tr><td>session 属于谁？</td><td>ToolHive 的 SSESession / StreamableSession</td><td>upstream server 产生 session；ToolHive 跟踪 ProxySession 以治理和路由</td></tr>
+    <tr><td>endpoint 属于谁？</td><td>ToolHive 固定暴露 <code>/mcp</code> 或 <code>/sse</code>/<code>/messages</code></td><td>server/remote URL 定义；proxy catch-all 转发并可能改写 SSE endpoint prefix</td></tr>
+  </tbody></table>
+
+  <h2>按执行顺序走读 7 个锚点</h2>
+  <ol>
+    <li><span class="path">pkg/transport/types/transport.go</span>：区分 <code>TransportType</code>、<code>ProxyMode</code>、<code>EffectiveProxyMode</code> 与 <code>Transport</code>/<code>Proxy</code> 接口。</li>
+    <li><span class="path">pkg/runner/runner.go</span>：看 runtime.Setup 如何先给出 container name / TargetURI，再交给 transport factory。</li>
+    <li><span class="path">pkg/transport/factory.go</span>：验证三种 TransportType 实际实例化哪一种 transport。</li>
+    <li><span class="path">pkg/transport/stdio.go</span>：看 attach、proxy mode 分流、stdin/stdout message pump 与 container monitor。</li>
+    <li><span class="path">pkg/transport/http.go</span>：看本地 TargetURI 与 RemoteURL 如何收敛为 transparent proxy target。</li>
+    <li><span class="path">pkg/transport/proxy/transparent/transparent_proxy.go</span>：找 reverse proxy、session、health、routing 与 catch-all handler。</li>
+    <li><span class="path">pkg/transport/session/manager.go</span>：确认 TTL、storage 和 typed session 的生命周期。</li>
+  </ol>
+
+  <h2>检索题：先预测，再展开</h2>
+  <details><summary>native streamable-http server 的 ProxyMode=SSE 会让客户端看到 /sse 吗？</summary><p>不会。<code>NormalizeProxyMode</code>/<code>EffectiveProxyMode</code> 对直接 HTTP transport 以 transport 本身为准；ProxyMode 只决定 stdio 的客户端侧协议。</p></details>
+  <details><summary>remote URL 带 <code>/v2/mcp?toolsets=core</code> 时，target 只保留 host 吗？</summary><p>HTTPTransport 用 scheme+host 建立 target，同时把 remote base path 和 raw query 作为 transparent proxy options，相关测试锁定 path/query 不应静默丢失。</p></details>
+  <details><summary>session storage 只是缓存，丢了也不影响路由吗？</summary><p>不能一概而论。它保存 session 与 backend/路由元数据；单副本默认内存存储，多副本需要共享存储才能让后续请求找到一致 backend。分布式细节留到第 15 课。</p></details>
+  <details><summary><code>thv proxy stdio</code> 也会进入 Factory 的 StdioTransport 吗？</summary><p>不会。它是相反方向的独立桥：本地 stdio façade 连接远端 SSE/Streamable server，走 <code>cmd/thv/app/proxy_stdio.go</code> 与 <code>pkg/transport/bridge.go</code>，不应和“HTTP client → ToolHive → container stdio”的 StdioTransport 混为一谈。</p></details>
+
+  <h2>测试是协议契约</h2>
+  <ul>
+    <li><span class="path">pkg/runner/config_test.go</span>：<code>NormalizeProxyMode</code> 和 transport/port 组合。</li>
+    <li><span class="path">pkg/transport/stdio_test.go</span>：JSON-RPC parsing/forwarding、reattach、并发与 factory 字段传递。</li>
+    <li><span class="path">pkg/transport/proxy/streamable/streamable_proxy_spec_test.go</span>：initialize session header、DELETE、stale session、notification 与并发 sessionless 请求。</li>
+    <li><span class="path">pkg/transport/proxy/transparent/transparent_test.go</span>：header/body session 检测、endpoint rewriting、health 与停止语义。</li>
+    <li><span class="path">pkg/transport/proxy/transparent/remote_path_test.go</span>：remote path/query 转发不丢失。</li>
+  </ul>
+
+  <h2>3 分钟路径判断</h2>
+  <p>选择最先负责修复的边界；三个选项均为 6 个字符。</p>
+  <section class="quiz" data-answer="协议桥接边界" data-why="stdio server 不说 HTTP，ToolHive 的 streamable proxy 必须生成 /mcp 语义并把 JSON-RPC 写入 stdin。"><strong>A.</strong> stdio server 的客户端初始化 <code>POST /mcp</code> 得到错误 session header。<div class="choices"><button type="button">协议桥接边界</button><button type="button">透明转发边界</button><button type="button">会话存储边界</button></div><p class="feedback" aria-live="polite"></p></section>
+  <section class="quiz" data-answer="透明转发边界" data-why="native SSE 的 endpoint event 由 upstream 产生，但 path-prefix 重写由 transparent response processor 负责。"><strong>B.</strong> ingress 前缀下 native SSE endpoint event 返回了错误外部路径。<div class="choices"><button type="button">协议桥接边界</button><button type="button">透明转发边界</button><button type="button">会话存储边界</button></div><p class="feedback" aria-live="polite"></p></section>
+  <section class="quiz" data-answer="会话存储边界" data-why="跨副本后续请求依赖共享 session/backend 元数据；只用 pod 内存时无法保证命中初始化所在 backend。"><strong>C.</strong> 两个 proxy 副本间切换后，已初始化 session 的后续请求找不到 backend。<div class="choices"><button type="button">协议桥接边界</button><button type="button">透明转发边界</button><button type="button">会话存储边界</button></div><p class="feedback" aria-live="polite"></p></section>
+
+  <h2>5 分钟实作：设计一条 transport 诊断记录</h2>
+  <p>任选一个连接失败，写六行：① server 实际协议；② client 期望协议；③ Transport；④ 若为 stdio，ProxyMode；⑤ client endpoint 与 upstream target；⑥ session ID 由谁产生、存在哪里。把答案发给教师，我会按“两个协议面是否分清、endpoint 是否准确、session 所有权、证据路径”反馈；展示出理解后才写入学习记录。</p>
+
+  <h2>一手资料</h2>
+  <p>主读：<a href="../../../pkg/transport/factory.go">Transport Factory</a>。配套事实源：<a href="../../../pkg/transport/stdio.go">StdioTransport</a>、<a href="../../../pkg/transport/http.go">HTTPTransport</a>、<a href="../../../pkg/transport/proxy/transparent/transparent_proxy.go">Transparent Proxy</a>、<a href="../../../pkg/transport/proxy/streamable/streamable_proxy.go">Streamable Proxy</a> 与 <a href="../../arch/03-transport-architecture.md">Transport Architecture</a>。协议语义以 <a href="https://modelcontextprotocol.io/specification/">MCP 官方规范</a>和当前测试为准。</p>
+  <footer><p>卡住时请向教师追问，并附上“server 协议、client 协议、proxy 类型、endpoint、session owner”五项。下一课把所有 transport 都会经过的 middleware 管线单独展开。</p></footer>
+  <script>document.querySelectorAll('.quiz').forEach((quiz)=>{quiz.querySelectorAll('button').forEach((button)=>{button.addEventListener('click',()=>{const feedback=quiz.querySelector('.feedback');const correct=button.textContent===quiz.dataset.answer;feedback.className='feedback '+(correct?'good':'bad');feedback.textContent=(correct?'正确。':'再想一次。')+quiz.dataset.why})})});</script>
+</body>
+</html>
