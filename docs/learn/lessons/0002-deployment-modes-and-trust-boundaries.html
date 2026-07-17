@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>第 2 课：部署形态与信任边界</title>
+  <style>
+    :root{--ink:#172033;--muted:#526076;--blue:#075985;--cyan:#0e7490;--paper:#fff;--soft:#ecfeff;--line:#cbd5e1;--good:#166534;--bad:#9f1239}
+    *{box-sizing:border-box}body{font:17px/1.7 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper);max-width:940px;margin:48px auto;padding:0 24px}h1{font-size:clamp(2rem,5vw,2.8rem);line-height:1.12;letter-spacing:-.03em}h2{margin-top:2.4rem;line-height:1.25}h3{line-height:1.35}a{color:var(--blue)}code,.path{font-family:ui-monospace,SFMono-Regular,monospace;color:var(--bad)}.meta,.callout{background:var(--soft);border-left:4px solid #06b6d4;padding:14px 18px}.meta{color:var(--muted)}.lens{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.lens article,.mode,.quiz{border:1px solid var(--line);border-radius:10px;padding:16px;background:#fff}.lens strong,.tag{color:var(--cyan)}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.mode h3{margin:.1rem 0 .7rem}.mode p{margin:.45rem 0}.flow{font-family:ui-monospace,SFMono-Regular,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}.comparison{width:100%;border-collapse:collapse;font-size:.94rem}.comparison th,.comparison td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}.comparison th{background:#e0f2fe}.comparison td:first-child{font-weight:700}details{border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:650}.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.choices button{font:inherit;border:1px solid #94a3b8;border-radius:999px;background:#fff;padding:7px 13px;cursor:pointer}.choices button:hover,.choices button:focus{border-color:#0891b2;background:#ecfeff}.feedback{min-height:1.7em;margin:.65rem 0 0;font-weight:650}.feedback.good{color:var(--good)}.feedback.bad{color:var(--bad)}footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem;color:var(--muted)}@media(max-width:760px){.lens,.modes{grid-template-columns:1fr}.comparison{font-size:.86rem}.comparison th,.comparison td{padding:8px}}@media print{body{margin:0;max-width:none;font-size:12pt}.quiz,details{break-inside:avoid}.choices{display:none}.feedback{display:none}}
+  </style>
+</head>
+<body>
+  <nav><a href="0001-toolhive-as-a-governance-platform.html">← 第 1 课</a> · <a href="../README.md">课程地图</a> · <a href="../reference/deployment-trust-boundaries.html">部署边界速查</a> · <a href="../reference/toolhive-glossary.html">术语表</a></nav>
+
+  <h1>第 2 课：部署形态改变的是控制权与信任边界</h1>
+  <p class="meta">校准日期：2026-07-17 · 预计 25 分钟 · 唯一目标：面对一个运行场景，你能指出“谁提交意图、谁持有执行权限、状态以谁为准、谁修复漂移”，并据此选择本地 CLI、本地 API 或 Kubernetes Operator。</p>
+
+  <h2>任务钩子</h2>
+  <p>安全同事问：“同一个 MCP server，用 <code>thv run</code>、ToolHive Studio，或 <code>MCPServer</code> CR 部署，有什么本质区别？”如果只回答“一个在电脑上、一个在集群里”，就漏掉了治理问题：<strong>控制请求跨过了哪些身份边界，哪个进程或控制器有权改变实际状态，故障后又由谁恢复？</strong></p>
+  <p>先打开 <a href="../reference/deployment-trust-boundaries.html">部署形态与信任边界速查</a>。以后分析任何部署形态，都先问四个问题：</p>
+
+  <div class="lens">
+    <article><strong>1 · 意图入口</strong><br>谁发出“创建、更新、停止”的请求？是本地 shell、HTTP 调用者，还是 Kubernetes API 中的 CR？</article>
+    <article><strong>2 · 权限持有者</strong><br>谁能调用容器 runtime 或 Kubernetes API？这个身份的权限是否超出它管理一个 workload 所需的范围？</article>
+    <article><strong>3 · 状态事实源</strong><br>重启后用什么重建判断？本地 RunConfig/PID/status 文件，还是 Kubernetes API 中的 spec、status 与子资源？</article>
+    <article><strong>4 · 漂移修复者</strong><br>这是一次命令触发的生命周期，还是 controller 会持续比较期望与实际并再次收敛？</article>
+  </div>
+
+  <h2>三种形态，一条共同执行主线</h2>
+  <div class="modes">
+    <section class="mode">
+      <h3>本地 CLI</h3>
+      <p><span class="tag">入口：</span>本地 OS 用户执行命令。</p>
+      <p><span class="tag">执行：</span>workload manager 重启当前 <code>thv</code> 为 detached supervisor，再调用本地容器 runtime。</p>
+      <p><span class="tag">状态：</span>本机 XDG 目录中的 RunConfig、PID、status 与日志。</p>
+    </section>
+    <section class="mode">
+      <h3>本地 API</h3>
+      <p><span class="tag">入口：</span><code>thv serve</code> 暴露 HTTP/Unix socket 控制面；默认绑定 <code>127.0.0.1</code>，可配置 OIDC。</p>
+      <p><span class="tag">执行：</span>API handler 仍调用同一个 workload manager 和 detached supervisor 模型。</p>
+      <p><span class="tag">状态：</span>仍以本机状态文件为主；API 是访问边界，不是新的持久化事实源。</p>
+    </section>
+    <section class="mode">
+      <h3>Kubernetes Operator</h3>
+      <p><span class="tag">入口：</span>调用者向 Kubernetes API 提交 <code>MCPServer</code> spec。</p>
+      <p><span class="tag">执行：</span>Operator 创建 Proxy Deployment、Service 和 RunConfig ConfigMap；Proxy Runner 再管理 server StatefulSet。</p>
+      <p><span class="tag">状态：</span>期望和观察状态通过 Kubernetes API 持久化，controller 持续 reconcile。</p>
+    </section>
+  </div>
+
+  <div class="flow">本地 CLI:  shell → thv run → RunConfig → detached thv → Proxy → container runtime
+本地 API:  caller → thv serve → WorkloadService ───────────────┘
+Kubernetes: caller → K8s API → Operator → Proxy Deployment → StatefulSet</div>
+
+  <div class="callout"><strong>关键纠正：</strong><code>thv serve</code> 增加了一个可被程序调用的控制入口，却没有把所有 workload 收进 API server 进程。<a href="../../../pkg/api/v1/workload_service.go"><code>CreateWorkloadFromRequest</code></a> 保存 RunConfig 后仍调用 <code>RunWorkloadDetached</code>；因此 API server 退出，不等于所有 detached Proxy 都随之退出。相反，Operator 模式把“持续修复实际状态”交给 reconciliation。</div>
+
+  <h2>用信任边界比较，而不是用功能清单比较</h2>
+  <table class="comparison">
+    <thead><tr><th>问题</th><th>本地 CLI</th><th>本地 API</th><th>Operator</th></tr></thead>
+    <tbody>
+      <tr><td>控制身份</td><td>当前 OS 用户</td><td>HTTP/socket 调用者，经 API middleware</td><td>Kubernetes 用户/服务账号，经 API Server 与 RBAC</td></tr>
+      <tr><td>高权限边界</td><td>本地容器 socket</td><td>API 控制入口 + 本地容器 socket</td><td>Operator/Proxy Runner 的 service account + Kubernetes API</td></tr>
+      <tr><td>生命周期语义</td><td>命令触发；detached supervisor 维持单个 workload</td><td>HTTP 触发；复用同一 detached 模型</td><td>spec 驱动；controller 持续收敛</td></tr>
+      <tr><td>故障先查</td><td>PID、status、Proxy 日志、容器状态</td><td>先分清 API 控制面故障与 detached workload 故障</td><td>CR conditions、reconcile 事件、Deployment/Service/StatefulSet</td></tr>
+      <tr><td>适合场景</td><td>单机开发与个人工具</td><td>同机 UI 或受控自动化</td><td>集群级共享、RBAC、声明式运维与规模化</td></tr>
+    </tbody>
+  </table>
+
+  <h2>像带新同事一样走读 7 个锚点</h2>
+  <ol>
+    <li><span class="path">cmd/thv/app/run.go</span>：定位 <code>runCmdFunc</code> / <code>runSingleServer</code>，找到 RunConfig 保存与 <code>RunWorkloadDetached</code> 的交接点。</li>
+    <li><span class="path">pkg/workloads/manager.go</span>：读 <code>RunWorkloadDetached</code> 和 <code>spawnDetached</code>；用一句话解释为什么不能用 <code>exec.CommandContext</code> 绑定父请求。</li>
+    <li><span class="path">cmd/thv/app/server.go</span>：找到默认监听地址、Unix socket 与 OIDC 配置；列出把 API 从 loopback 暴露到网络后新增的两项审查。</li>
+    <li><span class="path">pkg/api/v1/workload_service.go</span>：沿 <code>CreateWorkloadFromRequest</code> 标出 policy gate、SaveState 与 detached start 的顺序。</li>
+    <li><span class="path">cmd/thv-operator/controllers/mcpserver_controller.go</span>：在 <code>Reconcile</code> 中只定位 RunConfig ConfigMap、Deployment、Service 和 status；不要下钻所有配置分支。</li>
+    <li><span class="path">cmd/thv-operator/controllers/mcpserver_controller.go</span>：读 <code>SetupWithManager</code>，确认哪些资源变化能重新排队，而不只看一次 <code>Reconcile</code>。</li>
+    <li><span class="path">cmd/thv-proxyrunner/app/run.go</span>：观察 Kubernetes runtime 如何进入 <code>runner.NewRunner(...).Run(ctx)</code>，连接 Proxy Deployment 与 server StatefulSet 两个执行单元。</li>
+  </ol>
+  <p>最后用相邻测试确认契约，而不是把注释当事实：API 看 <span class="path">pkg/api/v1/workloads_test.go</span>，Operator 看 <span class="path">mcpserver_runconfig_test.go</span> 与 <span class="path">mcpserver_rbac_test.go</span>，Proxy Runner 看 <span class="path">cmd/thv-proxyrunner/app/run_test.go</span>。</p>
+
+  <h2>立即检索</h2>
+  <p>先在脑中作答，再展开反馈。</p>
+  <details><summary>1. API server 退出后，已经启动的本地 workload 必然一起退出吗？</summary><p>不必然。API 创建路径调用 <code>RunWorkloadDetached</code>，子进程被设计为脱离触发它的请求和父进程继续运行。应分别检查 API 控制入口与 workload supervisor。</p></details>
+  <details><summary>2. 把 <code>thv serve</code> 从 loopback 改为对外监听，只增加了网络连通性吗？</summary><p>不是。它把创建、更新、停止 workload 的高影响控制操作带到新的身份边界，必须同时审查认证、授权、TLS/网络暴露和 API 进程持有的本地 runtime 权限。</p></details>
+  <details><summary>3. Operator 与“定时执行一遍部署脚本”的关键差别是什么？</summary><p>Operator 通过 watch 与 reconcile 持续比较期望状态和实际状态，并把结果写回 status；一次性脚本完成命令后不会天然承担持续漂移修复。</p></details>
+
+  <h2>3 分钟情境判断</h2>
+  <p>每题先选一个部署形态，页面会立即反馈。三个选项使用等长标签，避免答案长度泄题。</p>
+  <section class="quiz" data-answer="本地命令模式" data-why="这是单用户、单机、无需远程控制面的最小边界；detached supervisor 已能让 workload 脱离终端运行。">
+    <strong>A.</strong> 开发者只在自己的笔记本上使用工具，希望关掉 shell 后服务继续运行。
+    <div class="choices"><button type="button">本地命令模式</button><button type="button">本地接口模式</button><button type="button">集群声明模式</button></div><p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-answer="本地接口模式" data-why="同机 Studio 需要稳定的程序化控制入口，但执行与状态仍可复用本地 workload 模型。">
+    <strong>B.</strong> 同一台机器上的 Studio 要通过 REST 创建、停止并查看本地 workloads。
+    <div class="choices"><button type="button">本地命令模式</button><button type="button">本地接口模式</button><button type="button">集群声明模式</button></div><p class="feedback" aria-live="polite"></p>
+  </section>
+  <section class="quiz" data-answer="集群声明模式" data-why="共享服务、RBAC、审计和故障后的持续收敛都需要 Kubernetes API 与 Operator 的声明式控制边界。">
+    <strong>C.</strong> 多团队共享服务，要求 RBAC、审计，并在 Pod 被删除后自动恢复期望状态。
+    <div class="choices"><button type="button">本地命令模式</button><button type="button">本地接口模式</button><button type="button">集群声明模式</button></div><p class="feedback" aria-live="polite"></p>
+  </section>
+
+  <h2>5 分钟实作：画出一个变更的权限链</h2>
+  <p>场景：平台团队要把“读取内部 Git 仓库”的 MCP server 提供给 300 名员工，并要求声明式恢复。请写四行答案：① 谁提交意图；② 哪个身份可创建 Proxy 和 server 资源；③ 期望/观察状态分别在哪里；④ 删除 server Pod 后谁触发恢复。最后补一句：哪条客户端流量路径仍必须经过 Proxy。把答案发给教师，我会按“身份是否明确、权限是否最小、事实源是否唯一、恢复者是否真实存在”逐项反馈；通过后才会写入学习记录。</p>
+
+  <h2>一手资料</h2>
+  <p>主读：<a href="../../arch/01-deployment-modes.md">Deployment Modes</a>。核对本地执行：<a href="../../../pkg/workloads/manager.go">workload manager</a> 与 <a href="../../../pkg/api/v1/workload_service.go">API workload service</a>。核对集群控制：<a href="../../../cmd/thv-operator/controllers/mcpserver_controller.go">MCPServer reconciler</a> 与 <a href="../../../cmd/thv-proxyrunner/app/run.go">Proxy Runner</a>。课件与当前源码不一致时，以源码、测试和 CRD 行为为准。</p>
+
+  <footer><p>卡住时请直接向教师追问，最好附上“入口身份 → 权限持有者 → 状态事实源 → 漂移修复者”四格分析。下一课将沿一次 <code>thv run</code> 的 happy path，从参数走到容器与 Proxy 启动。</p></footer>
+
+  <script>
+    document.querySelectorAll('.quiz').forEach((quiz) => {
+      quiz.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const feedback = quiz.querySelector('.feedback');
+          const correct = button.textContent === quiz.dataset.answer;
+          feedback.className = `feedback ${correct ? 'good' : 'bad'}`;
+          feedback.textContent = `${correct ? '正确。' : '再想一次。'}${quiz.dataset.why}`;
+        });
+      });
+    });
+  </script>
+</body>
+</html>

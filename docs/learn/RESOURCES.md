@@ -8,12 +8,22 @@
   workload、transport、middleware、RunConfig、registry、group、vMCP 等统一术语的事实源。
 - [Deployment Modes](../arch/01-deployment-modes.md)
   本地 CLI、API/UI 与 Kubernetes 模式的进程模型、状态位置和信任边界。
+- [Operator Architecture](../arch/09-operator-architecture.md)
+  Kubernetes 控制面、CRD 分层、reconcile 与 Proxy Runner 职责的一手说明。用于核对 Operator 模式的权限和状态边界。
 - [Architecture Reading Guide](../arch/README.md)
   当前架构文档索引。课程按治理闭环重新编排，但以这里的文档为一手依据。
 - [`thv run` command](../../cmd/thv/app/run.go)
   本地 happy path 的命令入口。用于从输入解析进入 RunConfig、workload manager 和 runner。
 - [Workload manager](../../pkg/workloads/manager.go)
   生命周期管理接口及默认实现。用于理解运行、停止、删除、重启、状态和 detached process。
+- [Local API server](../../cmd/thv/app/server.go)
+  `thv serve` 的监听、Unix socket、认证和 server builder 入口。用于区分管理 API 与 MCP Proxy 流量边界。
+- [API workload service](../../pkg/api/v1/workload_service.go)
+  API 请求到 RunConfig、policy gate、状态保存和 detached workload 的转换路径。用于校准“API-managed”的真实含义。
+- [MCPServer reconciler](../../cmd/thv-operator/controllers/mcpserver_controller.go)
+  `MCPServer` 到 RunConfig ConfigMap、Proxy Deployment、Service 与 status 的收敛主线。用于学习声明式控制边界。
+- [Kubernetes Proxy Runner](../../cmd/thv-proxyrunner/app/run.go)
+  集群内 Proxy 如何读取 RunConfig、创建 Kubernetes runtime 并启动 Runner。用于连接 Operator 控制面与 server StatefulSet 执行面。
 - [Runner](../../pkg/runner/runner.go)
   workload 执行与代理装配的核心实现。用于连接配置、runtime、transport 与 middleware。
 - [Transport factory](../../pkg/transport/factory.go)

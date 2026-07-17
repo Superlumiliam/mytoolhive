@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>ToolHive 部署形态与信任边界速查</title>
+  <style>
+    :root{--ink:#172033;--blue:#075985;--soft:#ecfeff;--line:#cbd5e1}*{box-sizing:border-box}body{font:16px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);max-width:1100px;margin:40px auto;padding:0 24px}h1{font-size:2.25rem;line-height:1.15}h2{margin-top:2rem}a{color:var(--blue)}code{color:#9f1239}.lead{background:var(--soft);border-left:4px solid #06b6d4;padding:12px 16px}table{width:100%;border-collapse:collapse;font-size:.93rem}th,td{border-bottom:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}th{background:#e0f2fe}.check{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.check div{border:1px solid var(--line);border-radius:8px;padding:12px}.n{font-weight:800;color:#0e7490}.signals{columns:2}.anchors{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.anchors div{background:#f8fafc;padding:9px 12px;border-radius:7px}@media(max-width:760px){.check,.anchors{grid-template-columns:1fr}.signals{columns:1}table{font-size:.82rem}th,td{padding:7px}}@media print{body{margin:0;max-width:none;font-size:10.5pt}a{text-decoration:none;color:inherit}.check div{break-inside:avoid}}
+  </style>
+</head>
+<body>
+  <nav><a href="../README.md">课程地图</a> · <a href="../lessons/0002-deployment-modes-and-trust-boundaries.html">第 2 课</a> · <a href="toolhive-glossary.html">术语表</a></nav>
+  <h1>部署形态与信任边界速查</h1>
+  <p class="lead"><strong>不变量：</strong>部署形态改变的是控制入口、权限身份、状态事实源和漂移修复机制。它不应改变客户端请求必须经过 Proxy 治理边界这一原则。</p>
+
+  <h2>四问法</h2>
+  <div class="check"><div><span class="n">1</span><br><strong>谁提交意图？</strong><br>shell、HTTP 调用者，还是 Kubernetes API 中的 CR？</div><div><span class="n">2</span><br><strong>谁持有权限？</strong><br>谁能调用 container socket 或 Kubernetes API？</div><div><span class="n">3</span><br><strong>谁是事实源？</strong><br>本地状态文件，还是 spec/status 与子资源？</div><div><span class="n">4</span><br><strong>谁修复漂移？</strong><br>单次命令、detached supervisor，还是持续 reconcile？</div></div>
+
+  <h2>对照表</h2>
+  <table>
+    <thead><tr><th>形态</th><th>意图入口</th><th>执行权限</th><th>事实源</th><th>恢复/收敛</th><th>首要审查</th></tr></thead>
+    <tbody>
+      <tr><td>本地 CLI</td><td>本地 OS 用户</td><td><code>thv</code> + container runtime socket</td><td>XDG 下 RunConfig、PID、status、logs</td><td>命令 + 每 workload detached supervisor</td><td>本机账号、socket、文件权限、Proxy 监听</td></tr>
+      <tr><td>本地 API</td><td>HTTP 或 Unix socket 调用者</td><td>API 进程委托同一 workload manager</td><td>仍是本地 XDG 状态</td><td>HTTP 触发同一 detached 模型</td><td>监听地址、OIDC、网络/TLS、runtime 权限</td></tr>
+      <tr><td>Operator</td><td>Kubernetes API 中的 <code>MCPServer</code></td><td>Operator 与 Proxy Runner service accounts</td><td>spec、status、ConfigMap 及 owned resources</td><td>watch + reconcile 持续收敛</td><td>RBAC、namespace、owner refs、Service 暴露、conditions</td></tr>
+    </tbody>
+  </table>
+
+  <h2>关键代码锚点</h2>
+  <div class="anchors"><div><code>cmd/thv/app/run.go</code><br>本地意图转为 RunConfig</div><div><code>pkg/workloads/manager.go</code><br>detached supervisor 与 PID/status</div><div><code>cmd/thv/app/server.go</code><br>API 监听、socket、OIDC</div><div><code>pkg/api/v1/workload_service.go</code><br>API 复用 detached workload 路径</div><div><code>cmd/thv-operator/controllers/mcpserver_controller.go</code><br>spec → ConfigMap/Deployment/Service/status</div><div><code>cmd/thv-proxyrunner/app/run.go</code><br>Proxy Runner → Kubernetes runtime/StatefulSet</div></div>
+
+  <h2>危险信号</h2>
+  <ul class="signals"><li>把 API server 当作所有本地 Proxy 的父进程。</li><li>把“能访问 API”误当作“有权执行所有 workload 操作”。</li><li>把 status 当期望状态，或把 spec 当实时健康证据。</li><li>给 controller 集群管理员权限，却没有逐项说明需要。</li><li>只创建 Kubernetes 对象，却没有 watch/reconcile 处理漂移。</li><li>让客户端绕过 Proxy 直连 server 以“减少一跳”。</li></ul>
+
+  <p>事实源：<a href="../../arch/01-deployment-modes.md">Deployment Modes</a>、<a href="../../../pkg/workloads/manager.go">Workload Manager</a>、<a href="../../../cmd/thv-operator/controllers/mcpserver_controller.go">MCPServer Reconciler</a>。</p>
+</body>
+</html>

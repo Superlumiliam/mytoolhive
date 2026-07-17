@@ -46,9 +46,11 @@
 ## 当前课程
 
 1. [ToolHive 是治理平台，而不只是容器启动器](lessons/0001-toolhive-as-a-governance-platform.html)
+2. [部署形态改变的是控制权与信任边界](lessons/0002-deployment-modes-and-trust-boundaries.html)
 
 ## 长期速查
 
 - [统一术语表](reference/toolhive-glossary.html)
 - [治理闭环](reference/governance-loop.html)
 - [代码库地图](reference/codebase-map.html)
+- [部署形态与信任边界](reference/deployment-trust-boundaries.html)
