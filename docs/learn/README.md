@@ -58,6 +58,7 @@
 11. [验证计划从改动面推导](lessons/0011-contribution-engineering-loop.html)
 12. [vMCP 的聚合视图与路由表是两个契约](lessons/0012-vmcp-aggregation-governance.html)
 13. [Operator 引用本身不会触发 Reconcile](lessons/0013-operator-crd-dependency-graph.html)
+14. [同一次调用可以经过三个 OAuth/OIDC 令牌边界](lessons/0014-oauth-oidc-identity-chain.html)
 
 ## 长期速查
 

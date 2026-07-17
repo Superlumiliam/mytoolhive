@@ -90,6 +90,10 @@
   后端能力并发查询、工具冲突解析、广告视图与完整路由表的聚合边界。
 - [vMCP core](../../pkg/vmcp/core/core_vmcp.go)
   identity、health、admission、composite tools 与按调用路由的统一领域入口。
+- [vMCP incoming authentication](../../pkg/vmcp/auth/factory/incoming.go)
+  OIDC/local/anonymous 认证、Identity 构造与 Cedar authorization 的入站边界。
+- [vMCP session identity binding](../../pkg/vmcp/session/binding/binding.go)
+  当前 `(iss, sub)` 会话所有者格式、匿名 sentinel 与“标识不等于凭证”的安全边界。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
