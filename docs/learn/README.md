@@ -60,6 +60,7 @@
 13. [Operator 引用本身不会触发 Reconcile](lessons/0013-operator-crd-dependency-graph.html)
 14. [同一次调用可以经过三个 OAuth/OIDC 令牌边界](lessons/0014-oauth-oidc-identity-chain.html)
 15. [副本数不是可用性承诺](lessons/0015-replicas-and-distributed-state.html)
+16. [一次调用需要四种可观测证据](lessons/0016-observability-evidence-chain.html)
 
 ## 长期速查
 

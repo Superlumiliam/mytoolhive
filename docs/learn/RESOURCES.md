@@ -102,6 +102,16 @@
   Pod-local LRU 容量、淘汰回调与 cache miss 处理的实现边界。
 - [vMCP session restore factory](../../pkg/vmcp/session/factory.go)
   backend/session 恢复线索写入、`RestoreSession` 重连和工具路由重建的实现边界。
+- [Observability architecture](../observability.md)
+  ToolHive tracing、metrics、structured audit logging、middleware 顺序与 signal 配置的开发者说明。
+- [Telemetry provider strategy](../../pkg/telemetry/providers/providers_strategy.go)
+  no-op、OTLP tracing/metrics、Prometheus reader 及 unified MeterProvider 的实际选择逻辑。
+- [Telemetry middleware and propagation](../../pkg/telemetry/middleware.go)
+  HTTP/MCP spans、metrics、W3C context 提取与基于 HTTP status 的结果分类边界。
+- [Audit event production](../../pkg/audit/auditor.go)
+  主体/target/outcome、payload 保护和 HTTP 200 JSON-RPC application error 检测的事实入口。
+- [MCPTelemetryConfig API](../../cmd/thv-operator/api/v1beta1/mcptelemetryconfig_types.go)
+  共享配置、Secret-backed headers、CA bundle、per-workload serviceName 与 spec validation 契约。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
