@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>RunConfig 控制面契约速查</title>
+  <style>:root{--ink:#18212f;--indigo:#4338ca;--soft:#f5f3ff;--line:#cbd5e1}*{box-sizing:border-box}body{font:16px/1.65 system-ui,-apple-system,sans-serif;color:var(--ink);max-width:1080px;margin:40px auto;padding:0 24px}h1{font-size:2.25rem;line-height:1.15}h2{margin-top:2rem}a{color:var(--indigo)}code{color:#9f1239}.lead{background:var(--soft);border-left:4px solid #8b5cf6;padding:12px 16px}.flow{font:14px/1.65 ui-monospace,SFMono-Regular,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{border-bottom:1px solid var(--line);padding:9px;text-align:left;vertical-align:top}th{background:#ede9fe}.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.checks div{border:1px solid var(--line);border-radius:8px;padding:12px}@media(max-width:760px){.checks{grid-template-columns:1fr}table{font-size:.82rem}th,td{padding:7px}}@media print{body{margin:0;max-width:none;font-size:10.5pt}a{text-decoration:none;color:inherit}.checks div{break-inside:avoid}}</style>
+</head>
+<body>
+  <nav><a href="../README.md">课程地图</a> · <a href="../lessons/0004-runconfig-as-control-plane-contract.html">第 4 课</a> · <a href="codebase-map.html">代码地图</a></nav>
+  <h1>RunConfig 控制面契约速查</h1>
+  <p class="lead"><strong>一句话：</strong>RunConfig 保存可移植的运行意图，但执行时仍需注入 runtime、解析受管理秘密并连接外部资源；wire decode、builder validation 和 runtime rehydration 是三层不同保证。</p>
+  <div class="flow">inputs → builder/defaults/validation → RunConfig → WriteJSON/state/ConfigMap
+                                                  │
+                                                  ▼
+                  ReadJSON/limited migration → runtime injection → secret resolution → Runner</div>
+  <h2>分类与所有权</h2>
+  <table><thead><tr><th>层</th><th>代表内容</th><th>主要所有者</th><th>审查问题</th></tr></thead><tbody>
+    <tr><td>持久契约</td><td>identity、source、args、transport、ports、permissions、middleware、secret refs</td><td><code>RunConfig</code> + builder</td><td>每个入口都能设置和验证吗？JSON round-trip 保真吗？</td></tr>
+    <tr><td>wire decode</td><td>nil 初始化、缺失 schema 默认、legacy OAuth/bearer migration、ProxyMode normalization</td><td><code>ReadJSON</code></td><td>不要假定它会做必填字段或版本兼容性校验。</td></tr>
+    <tr><td>运行注入</td><td>Deployer、build context、existing port、generation override</td><td>CLI child / proxy-runner</td><td>跨进程或跨部署形态后由谁重建？</td></tr>
+    <tr><td>秘密解析</td><td>secret store values、resolved headers、OAuth/bearer material</td><td>Runner / Kubernetes environment</td><td>保存的是引用还是值？是否有可序列化的旁路字段？</td></tr>
+    <tr><td>K8s 转换</td><td>RunConfig → MCPServer subset</td><td><code>pkg/export/k8s.go</code></td><td>哪些字段降级、遗漏或需要额外 Secret/Telemetry/OIDC 资源？</td></tr>
+  </tbody></table>
+  <h2>变更前的三个检查</h2>
+  <div class="checks"><div><strong>入口一致性</strong><br>CLI、API、Operator、import、proxy-runner 是否采用同一默认/验证语义？</div><div><strong>版本与迁移</strong><br>旧 JSON 如何读取？新 reader 是否保留旧意图？不能把 schema 字段存在当作已实现兼容门。</div><div><strong>导出保真</strong><br>JSON export 接近 wire round-trip；K8s export 是有损模型转换，必须检查 warning 与字段映射测试。</div></div>
+  <h2>证据路径</h2>
+  <p><a href="../../../pkg/runner/config.go">RunConfig / JSON codec</a> · <a href="../../../pkg/runner/config_builder.go">builder</a> · <a href="../../../pkg/state/runconfig.go">state store</a> · <a href="../../../cmd/thv/app/run.go">JSON import</a> · <a href="../../../cmd/thv/app/export.go">export command</a> · <a href="../../../pkg/export/k8s.go">K8s conversion</a> · <a href="../../../cmd/thv-operator/controllers/mcpserver_runconfig.go">Operator rendering</a> · <a href="../../../cmd/thv-proxyrunner/app/run.go">proxy-runner rehydration</a></p>
+</body>
+</html>

@@ -22,6 +22,14 @@
   registry lookup、raw image fallback、policy-before-pull 与协议镜像构建边界。用于定位镜像实际执行前的同步失败。
 - [RunConfig builder](../../pkg/runner/config_builder.go)
   options 应用、环境变量、transport/port 默认值、校验和 schema version 的收敛边界。用于核对最终运行契约如何形成。
+- [RunConfig contract](../../pkg/runner/config.go)
+  共享 JSON/YAML wire format、有限的读取迁移、秘密引用与运行时字段边界。当前 schema version 是标记与默认值，不是通用兼容性校验门。
+- [RunConfig state persistence](../../pkg/state/runconfig.go)
+  本地 RunConfig 的保存与加载抽象。用于区分 codec、状态存储和运行时恢复职责。
+- [Kubernetes manifest export](../../pkg/export/k8s.go)
+  RunConfig 到 MCPServer 的字段映射。用于识别本地 JSON 与 Kubernetes 部署模型之间的有损转换。
+- [Operator RunConfig rendering](../../cmd/thv-operator/controllers/mcpserver_runconfig.go)
+  MCPServer CR 经 operator builder、额外校验与 ConfigMap 交付 RunConfig 的实现边界。
 - [Workload manager](../../pkg/workloads/manager.go)
   生命周期管理接口及默认实现。用于理解运行、停止、删除、重启、状态和 detached process。
 - [Local API server](../../cmd/thv/app/server.go)
