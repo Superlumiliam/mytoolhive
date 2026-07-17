@@ -56,6 +56,7 @@
 9. [Workload 状态是多层证据的对账结果](lessons/0009-workload-lifecycle-and-state.html)
 10. [Operator 治理是两级控制环](lessons/0010-operator-minimum-governance-loop.html)
 11. [验证计划从改动面推导](lessons/0011-contribution-engineering-loop.html)
+12. [vMCP 的聚合视图与路由表是两个契约](lessons/0012-vmcp-aggregation-governance.html)
 
 ## 长期速查
 

@@ -84,6 +84,10 @@
   supervisor 进程发现、PID 验证与安全停止边界。
 - [MCPServer controller](../../cmd/thv-operator/controllers/mcpserver_controller.go)
   finalizer、引用校验、RBAC、RunConfig、Proxy Deployment/Service 与 conditions 的一级收敛主线。
+- [vMCP aggregator](../../pkg/vmcp/aggregator/default_aggregator.go)
+  后端能力并发查询、工具冲突解析、广告视图与完整路由表的聚合边界。
+- [vMCP core](../../pkg/vmcp/core/core_vmcp.go)
+  identity、health、admission、composite tools 与按调用路由的统一领域入口。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
