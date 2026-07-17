@@ -94,6 +94,14 @@
   OIDC/local/anonymous 认证、Identity 构造与 Cedar authorization 的入站边界。
 - [vMCP session identity binding](../../pkg/vmcp/session/binding/binding.go)
   当前 `(iss, sub)` 会话所有者格式、匿名 sentinel 与“标识不等于凭证”的安全边界。
+- [vMCP scalability limits](../arch/13-vmcp-scalability.md)
+  每 Pod session cache、两类 TTL、Redis 热路径、状态恢复边界与 backend 故障模型的一手运维说明。
+- [Operator replica controller tests](../../cmd/thv-operator/controllers/mcpserver_replicas_test.go)
+  nil replicas、HPA hands-off、stdio cap、session storage warning 与 readyReplicas 的可执行规格。
+- [vMCP session manager factory](../../pkg/vmcp/server/sessionmanager/factory.go)
+  Pod-local LRU 容量、淘汰回调与 cache miss 处理的实现边界。
+- [vMCP session restore factory](../../pkg/vmcp/session/factory.go)
+  backend/session 恢复线索写入、`RestoreSession` 重连和工具路由重建的实现边界。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
