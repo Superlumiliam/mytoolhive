@@ -52,6 +52,7 @@
 5. [Transport 决定 Proxy 是协议桥接还是 HTTP 转发](lessons/0005-transport-and-proxy-boundaries.html)
 6. [Middleware 顺序就是安全语义](lessons/0006-middleware-order-is-security.html)
 7. [最小权限是文件、网络、秘密与 runtime 的交集](lessons/0007-least-privilege-and-secrets.html)
+8. [Registry 是目录，供应链准入是多道门](lessons/0008-registry-and-supply-chain-admission.html)
 
 ## 长期速查
 
@@ -64,3 +65,4 @@
 - [Transport 与 Proxy 决策表](reference/transport-proxy-decision-table.html)
 - [Middleware 顺序评审清单](reference/middleware-order-checklist.html)
 - [最小权限与秘密审计清单](reference/least-privilege-audit.html)
+- [Registry 与供应链准入清单](reference/registry-admission-checklist.html)

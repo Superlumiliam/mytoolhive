@@ -70,6 +70,14 @@
   有效 permission profile、环境、network isolation、gateway 和 mount 意图进入 deployer 的边界。
 - [Docker workload deployment](../../pkg/container/docker/client.go)
   本地容器 isolation、egress helper、mount 与 runtime 强制实现。
+- [Registry architecture](../arch/06-registry-system.md)
+  provider、metadata、remote/container server 与企业 registry 的设计背景。
+- [Registry provider factory](../../pkg/registry/factory.go)
+  API、remote JSON、local file、embedded provider 的选择、认证与缓存入口。
+- [Server retriever and image verification](../../pkg/runner/retriever/retriever.go)
+  名称解析、direct image fallback、provenance 验证、policy-before-pull 和执行物获取边界。
+- [RunConfig create policy gate](../../pkg/runner/policy_gate.go)
+  完整运行意图的 eager/runner 创建准入接口；默认实现允许全部。
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/)
   MCP 官方规范。用于核对 transport、session、capability 与 JSON-RPC 语义，避免依赖二手解释。
 - [Contributing guide](../../CONTRIBUTING.md)
