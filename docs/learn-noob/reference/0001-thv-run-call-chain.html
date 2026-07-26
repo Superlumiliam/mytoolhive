@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ToolHive · thv run 调用链速查</title>
+  <style>
+    :root { --ink:#25313b; --muted:#687782; --paper:#fbfaf6; --accent:#9c4b31; --line:#ded8cb; --code:#20262b; }
+    * { box-sizing:border-box; } body { margin:0; color:var(--ink); background:var(--paper); font:16px/1.7 Georgia, "Noto Serif SC", serif; }
+    main { max-width:900px; margin:0 auto; padding:56px 28px 80px; } .kicker { color:var(--accent); letter-spacing:.12em; text-transform:uppercase; font:12px/1.2 ui-sans-serif,system-ui,sans-serif; }
+    h1 { max-width:720px; margin:12px 0 10px; font-size:clamp(32px,6vw,54px); line-height:1.1; font-weight:500; } h2 { margin-top:42px; font-size:25px; font-weight:500; }
+    .lede { color:var(--muted); max-width:690px; font-size:19px; } .chain { margin:26px 0; padding:20px 22px; border-left:4px solid var(--accent); background:#f2eee5; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; line-height:2; overflow:auto; }
+    table { width:100%; border-collapse:collapse; margin:18px 0; } th,td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; } th { color:var(--muted); font:12px ui-sans-serif,system-ui,sans-serif; text-transform:uppercase; letter-spacing:.08em; }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.9em; } pre { padding:16px; overflow:auto; color:#eef1f2; background:var(--code); border-radius:5px; }
+    a { color:var(--accent); } .note { color:var(--muted); font-size:14px; }
+  </style>
+</head>
+<body><main>
+  <div class="kicker">ToolHive / reference 001</div>
+  <h1><code>thv run</code> 的本地前台调用链</h1>
+  <p class="lede">把一个 CLI 动作压缩成一条可复述的路径：命令入口接收参数，构造 RunConfig，manager 负责生命周期，runner 负责一次运行，runtime 负责把配置变成容器。</p>
+  <div class="chain">main → NewRootCmd → runCmd → runCmdFunc → runSingleServer<br>
+    → BuildRunnerConfig → SaveState → RunWorkload<br>
+    → Runner.Run → runtime.Setup → Deployer.DeployWorkload</div>
+  <h2>每层只记一个问题</h2>
+  <table><thead><tr><th>层</th><th>代码位置</th><th>它回答的问题</th></tr></thead><tbody>
+    <tr><td>CLI</td><td><code>cmd/thv/app/run.go</code></td><td>用户输入了什么？应该走哪条分支？</td></tr>
+    <tr><td>配置</td><td><code>cmd/thv/app/run_flags.go</code></td><td>flags 如何变成稳定、可传递的 <code>RunConfig</code>？</td></tr>
+    <tr><td>Workload manager</td><td><code>pkg/workloads/manager.go</code></td><td>生命周期和状态如何管理？是否需要重试？</td></tr>
+    <tr><td>Runner</td><td><code>pkg/runner/runner.go</code></td><td>一次 MCP server 运行如何组装 middleware、transport 和 runtime？</td></tr>
+    <tr><td>Runtime</td><td><code>pkg/runtime/setup.go</code></td><td>如何把抽象配置转换为容器部署参数？</td></tr>
+    <tr><td>具体实现</td><td><code>pkg/container/runtime/</code></td><td>Docker、Kubernetes 等实际 deployer 如何执行？</td></tr>
+  </tbody></table>
+  <h2>三个 Go 观察点</h2>
+  <ul><li><code>workloads.Manager</code> 是调用者依赖的接口；CLI 不需要知道具体 manager 结构。</li><li><code>RunConfig</code> 是跨层传递的“事实对象”，减少函数参数爆炸。</li><li><code>context.Context</code> 从 CLI 进入底层，承载取消和超时边界。</li></ul>
+  <p class="note">配套课程：<a href="../lessons/0001-thv-run-local-foreground.html">Lesson 1 · 追踪一次本地前台运行</a>。架构背景见 <a href="../../arch/00-overview.md">Architecture Overview</a>。</p>
+</main></body></html>
